@@ -111,7 +111,7 @@ jobs:
             type=sha,format=long
             type=ref,event=branch
             latest
-      
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -121,10 +121,14 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           load: true
       
+      - name: Set lowercase image name
+        id: lowercase
+        run: echo "IMAGE_NAME_LOWER=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:sha-${{ github.sha }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
