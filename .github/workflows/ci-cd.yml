@@ -79,7 +79,6 @@ jobs:
     needs: [build]
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
     outputs:
       image_tag: ${{ steps.set_output.outputs.image_tag }}
     steps:
@@ -102,11 +101,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.TOKEN }}
       
+      - name: Set lowercase repository name
+        id: repo_name
+        run: echo "REPO_NAME_LOWER=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.REPO_NAME_LOWER }}
           tags: |
             type=sha,format=long
             type=ref,event=branch
@@ -121,14 +124,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           load: true
       
-      - name: Set lowercase image name
-        id: lowercase
-        run: echo "IMAGE_NAME_LOWER=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-      
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:sha-${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.REPO_NAME_LOWER }}:sha-${{ github.sha }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
@@ -163,14 +162,16 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
       
+      - name: Set lowercase repository name
+        run: echo "REPO_NAME_LOWER=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      
       - name: Update Kubernetes deployment file
         env:
           IMAGE_TAG: sha-${{ github.sha }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
           REGISTRY: ghcr.io
         run: |
           # Define the new image with tag
-          NEW_IMAGE="${REGISTRY}/${GITHUB_REPOSITORY}:${IMAGE_TAG}"
+          NEW_IMAGE="${REGISTRY}/${REPO_NAME_LOWER}:${IMAGE_TAG}"
           
           # Update the deployment file directly
           sed -i "s|image: ${REGISTRY}/.*|image: ${NEW_IMAGE}|g" kubernetes/deployment.yaml
